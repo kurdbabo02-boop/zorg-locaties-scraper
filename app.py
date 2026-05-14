@@ -1,12 +1,10 @@
 """
 Zorg Locaties — Streamlit interface
-Vindt 24/7 zorginstellingen in Nederland en België.
+Vindt 24/7 zorginstellingen in Nederland en België met contactgegevens.
 """
 
-import io, sys, os, smtplib, ssl
+import io, sys, os
 from datetime import datetime
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from typing import List
 
 import pandas as pd
@@ -26,68 +24,43 @@ st.set_page_config(
 )
 
 # ── Sessiestatus ──────────────────────────────────────────────────────────────
-DEFAULTS = dict(results=[], last_run=None, df=None, dark_mode=False,
-                email_sent=[], smtp_ok=False)
-for k, v in DEFAULTS.items():
+for k, v in dict(results=[], last_run=None, df=None, dark_mode=False).items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 # ── Thema CSS ─────────────────────────────────────────────────────────────────
-LIGHT = """
+DARK_CSS = """
 <style>
-:root { --bg:#ffffff; --bg2:#f0f6ff; --sidebar:#f8faff;
-        --text:#1a1a1a; --accent:#1F4E79; --accent2:#163d61;
-        --card-bg:#f0f6ff; --border:#d0dff0; --muted:#888; }
+.stApp { background-color:#0e1117 !important; }
+section[data-testid="stSidebar"] { background-color:#151b28 !important; }
+section[data-testid="stSidebar"] * { color:#e8f0ff !important; }
+.stTextInput input,.stTextArea textarea { background:#1e2535 !important; color:#e8f0ff !important; border-color:#2d3a52 !important; }
+.stDataFrame { background:#1e2535 !important; }
+h1,h2,h3,h4,p,label,span,.stMarkdown { color:#e8f0ff !important; }
+.stButton > button { background:#1e2535 !important; color:#e8f0ff !important; border-color:#2d3a52 !important; }
 </style>"""
 
-DARK = """
-<style>
-:root { --bg:#0e1117; --bg2:#1a1f2e; --sidebar:#151b28;
-        --text:#f0f4ff; --accent:#4da6ff; --accent2:#6bb8ff;
-        --card-bg:#1e2535; --border:#2d3a52; --muted:#8a9bbf; }
-.stApp { background-color: #0e1117 !important; color: #f0f4ff !important; }
-section[data-testid="stSidebar"] { background-color: #151b28 !important; }
-section[data-testid="stSidebar"] * { color: #f0f4ff !important; }
-.stTextInput input, .stTextArea textarea, .stSelectbox div,
-.stMultiSelect div { background-color: #1e2535 !important; color: #f0f4ff !important; border-color: #2d3a52 !important; }
-.stDataFrame, [data-testid="stDataFrame"] { background-color: #1e2535 !important; }
-h1,h2,h3,h4,h5,h6,p,label,span,.stMarkdown { color: #f0f4ff !important; }
-.stButton button { background-color: #1e2535 !important; color: #f0f4ff !important; border-color: #2d3a52 !important; }
+COMMON_CSS = """<style>
+.main-title { font-size:2rem; font-weight:700; color:#1F4E79; margin-bottom:0; }
+.sub-title  { font-size:.9rem; color:#888; margin-top:0; margin-bottom:1.2rem; }
+.stat-card  { background:#f0f6ff; border-left:4px solid #1F4E79; border-radius:6px; padding:12px 16px; margin-bottom:8px; }
+.stat-label { font-size:.7rem; color:#888; text-transform:uppercase; letter-spacing:.05em; }
+.stat-value { font-size:1.6rem; font-weight:700; color:#1F4E79; line-height:1.2; }
+.sidebar-section { font-size:.7rem; font-weight:700; color:#1F4E79; text-transform:uppercase; letter-spacing:.07em; margin-top:.9rem; margin-bottom:.2rem; }
 </style>"""
 
-COMMON_CSS = """
-<style>
-    .main-title { font-size:2rem; font-weight:700; color:var(--accent); margin-bottom:0; }
-    .sub-title  { font-size:.9rem; color:var(--muted); margin-top:0; margin-bottom:1.2rem; }
-    .stat-card  { background:var(--card-bg); border-left:4px solid var(--accent);
-                  border-radius:6px; padding:12px 16px; margin-bottom:8px; }
-    .stat-label { font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
-    .stat-value { font-size:1.6rem; font-weight:700; color:var(--accent); line-height:1.2; }
-    .sidebar-section { font-size:.7rem; font-weight:700; color:var(--accent);
-                       text-transform:uppercase; letter-spacing:.07em;
-                       margin-top:.9rem; margin-bottom:.2rem; }
-    .sel-badge { background:var(--accent); color:white; border-radius:12px;
-                 padding:3px 10px; font-size:.8rem; font-weight:600;
-                 display:inline-block; margin-bottom:.5rem; }
-    .email-preview { background:var(--card-bg); border:1px solid var(--border);
-                     border-radius:8px; padding:16px; font-family:monospace;
-                     font-size:.85rem; white-space:pre-wrap; }
-</style>"""
-
-st.markdown(DARK if st.session_state.dark_mode else LIGHT, unsafe_allow_html=True)
+if st.session_state.dark_mode:
+    st.markdown(DARK_CSS, unsafe_allow_html=True)
 st.markdown(COMMON_CSS, unsafe_allow_html=True)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 🏥 Zorg Locaties")
     st.caption("24/7 zorginstellingen in NL & BE")
-
-    # Thema toggle
     dark_on = st.toggle("🌙 Dark mode", value=st.session_state.dark_mode)
     if dark_on != st.session_state.dark_mode:
         st.session_state.dark_mode = dark_on
         st.rerun()
-
     st.divider()
 
     st.markdown('<div class="sidebar-section">🌍 Land</div>', unsafe_allow_html=True)
@@ -123,11 +96,15 @@ with st.sidebar:
     quick_mode = st.toggle("Snel zoeken (aanbevolen)", value=True,
         help="Snel: ~8 queries, <30 sec.\nUitgebreid: alle regio's, kan minuten duren.")
 
+    st.markdown('<div class="sidebar-section">📞 Contactgegevens</div>', unsafe_allow_html=True)
+    do_enrich = st.toggle("Bezoek websites voor telefoon & e-mail", value=True,
+        help="Bezoekt elke gevonden website om telefoon en e-mail op te halen. Duurt iets langer.")
+
     st.markdown('<div class="sidebar-section">⚙️ Bronnen</div>', unsafe_allow_html=True)
-    use_zorgkaart = st.checkbox("Zorgkaart NL",          value=True)
-    use_vektis    = st.checkbox("Vektis AGB open data",  value=True)
-    use_search    = st.checkbox("DuckDuckGo zoeken",     value=True)
-    use_belgium   = st.checkbox("Belgische bronnen",     value=include_be)
+    use_zorgkaart = st.checkbox("Zorgkaart NL",         value=True)
+    use_vektis    = st.checkbox("Vektis AGB open data", value=True)
+    use_search    = st.checkbox("DuckDuckGo zoeken",    value=True)
+    use_belgium   = st.checkbox("Belgische bronnen",    value=include_be)
 
     st.divider()
     start_btn = st.button("🔍 Start zoeken", type="primary",
@@ -151,8 +128,8 @@ EXCL_TERMS = ["thuiszorg","dagopvang","dagverzorging","thuisverpleging",
               "vacature","werken bij","solliciteer"]
 
 # ── Scrapers uitvoeren ────────────────────────────────────────────────────────
-def run_scrapers_ui(countries, regions, care_sel, f_dem, f_eld,
-                    sm, em, flags, quick) -> List[CareLocation]:
+def run_scrapers(countries, regions, care_sel, f_dem, f_eld,
+                 sm, em, flags, quick) -> List[CareLocation]:
     from scrapers import ZorgkaartScraper, SearchScraper, VektisScraper, BelgiumScraper
     from config.queries import EXCLUDED_CARE_TYPES
 
@@ -201,34 +178,33 @@ def make_df(locs: List[CareLocation]) -> pd.DataFrame:
             "☑":        False,
             "Naam":     l.name,
             "Locatie":  ", ".join(parts),
-            "Type":     l.care_type.replace("_"," ").title() if l.care_type else "",
-            "Telefoon": l.phone or "",
-            "E-mail":   l.email or "",
+            "Telefoon": l.phone  or "",
+            "E-mail":   l.email  or "",
             "Website":  l.website or l.source_url or "",
-            "Klein":    "✓" if l.is_small else "",
-            "Nieuw":    "✓" if l.is_emerging else "",
         })
     return pd.DataFrame(rows)
 
 
-# ── Starten ───────────────────────────────────────────────────────────────────
+# ── Zoeken starten ────────────────────────────────────────────────────────────
 if start_btn:
     countries = [c for c, inc in [("NL",include_nl),("BE",include_be)] if inc]
     flags = dict(zorgkaart=use_zorgkaart, vektis=use_vektis,
                  search=use_search, belgium=use_belgium)
     steps = [k for k, v in flags.items() if v]
-    bar   = st.progress(0, text="Initialiseren...")
-    info  = st.empty()
-    all_locs: List[CareLocation] = []
-
     LABELS = dict(zorgkaart="Zorgkaart Nederland", vektis="Vektis AGB-register",
                   search="DuckDuckGo zoeken", belgium="Belgische bronnen")
 
+    bar  = st.progress(0, text="Initialiseren...")
+    info = st.empty()
+    all_locs: List[CareLocation] = []
+
+    # Stap 1 — scrapers
+    total_steps = len(steps) + (1 if do_enrich else 0)
     for i, step in enumerate(steps):
         info.info(f"🔍 {LABELS[step]}...")
-        bar.progress(i/len(steps), text=f"Bezig: {LABELS[step]}...")
+        bar.progress(i / total_steps, text=f"Bezig: {LABELS[step]}...")
         try:
-            partial = run_scrapers_ui(
+            partial = run_scrapers(
                 countries, selected_regions, care_types,
                 focus_dem, focus_eld, only_small, only_emerging,
                 {k:(k==step) for k in flags}, quick_mode,
@@ -237,283 +213,188 @@ if start_btn:
         except Exception as e:
             st.warning(f"⚠️ {LABELS[step]} mislukt: {e}")
 
-    bar.progress(1.0, text="Klaar!")
-    info.empty()
-
+    # Globale dedup
     seen, unique = set(), []
     for l in all_locs:
         k = l.dedup_key()
         if k not in seen:
             seen.add(k); unique.append(l)
 
+    # Stap 2 — contactgegevens verrijken
+    if do_enrich and unique:
+        from utils.enrich import enrich_one
+        from utils.http import get_session
+
+        enrich_step = len(steps)
+        bar.progress(enrich_step / total_steps, text="Contactgegevens ophalen...")
+        enrich_session = get_session()
+        enrich_box = st.empty()
+
+        for idx, loc in enumerate(unique):
+            if loc.email and loc.phone:
+                continue
+            enrich_box.caption(f"📞 {loc.name[:50]}...")
+            try:
+                unique[idx] = enrich_one(loc, enrich_session)
+            except Exception:
+                pass
+
+        enrich_box.empty()
+
+    bar.progress(1.0, text="Klaar!")
+    info.empty()
+
     st.session_state.results  = unique
     st.session_state.last_run = datetime.now().strftime("%d-%m-%Y %H:%M")
     st.session_state.df       = make_df(unique)
-    st.session_state.email_sent = []
 
-# ── Resultaten ────────────────────────────────────────────────────────────────
+# ── Resultaten tonen ──────────────────────────────────────────────────────────
 results: List[CareLocation] = st.session_state.results
 
 if results:
     df_master: pd.DataFrame = st.session_state.df
 
+    # Statistieken
     nl = sum(1 for l in results if l.country=="NL")
     be = sum(1 for l in results if l.country=="BE")
-    sm = sum(1 for l in results if l.is_small)
+    has_email = sum(1 for l in results if l.email)
+    has_phone = sum(1 for l in results if l.phone)
+
     c1,c2,c3,c4 = st.columns(4)
     for col, lbl, val in [(c1,"Totaal",len(results)),(c2,"Nederland",nl),
-                          (c3,"België",be),(c4,"Kleinschalig",sm)]:
+                          (c3,"België",be),(c4,"Met e-mail",has_email)]:
         col.markdown(
             f'<div class="stat-card"><div class="stat-label">{lbl}</div>'
             f'<div class="stat-value">{val}</div></div>', unsafe_allow_html=True)
     if st.session_state.last_run:
-        st.caption(f"Laatste zoekopdracht: {st.session_state.last_run}")
+        st.caption(f"Laatste zoekopdracht: {st.session_state.last_run} — "
+                   f"📞 {has_phone} met telefoon · 📧 {has_email} met e-mail")
 
     st.divider()
 
+    # Zoekbalk
     search_q = st.text_input("🔎 Zoek in resultaten",
-                             placeholder="bijv. Amsterdam of verpleeghuis...")
+                             placeholder="bijv. Amsterdam, verpleeghuis...")
     df_view = df_master.copy()
     if search_q:
         mask = (df_view["Naam"].str.contains(search_q,case=False,na=False) |
-                df_view["Locatie"].str.contains(search_q,case=False,na=False) |
-                df_view["Type"].str.contains(search_q,case=False,na=False))
+                df_view["Locatie"].str.contains(search_q,case=False,na=False))
         df_view = df_view[mask].reset_index(drop=True)
 
-    st.caption(f"{len(df_view)} van {len(results)} locaties — **klik ☑ om rijen te selecteren**")
+    st.caption(f"{len(df_view)} van {len(results)} locaties weergegeven — "
+               "**klik ☑ om te selecteren**")
 
     edited = st.data_editor(
         df_view,
         use_container_width=True,
         hide_index=True,
-        height=460,
+        height=480,
         column_config={
-            "☑":        st.column_config.CheckboxColumn("☑",       width="small", default=False),
-            "Naam":     st.column_config.TextColumn("Naam",         width="large"),
-            "Locatie":  st.column_config.TextColumn("Locatie",      width="large"),
-            "Type":     st.column_config.TextColumn("Type",         width="medium"),
-            "Telefoon": st.column_config.TextColumn("Telefoon",     width="medium"),
-            "E-mail":   st.column_config.TextColumn("E-mail",       width="medium"),
-            "Website":  st.column_config.LinkColumn("Website", display_text="🔗 Bekijk", width="small"),
-            "Klein":    st.column_config.TextColumn("Klein",        width="small"),
-            "Nieuw":    st.column_config.TextColumn("Nieuw",        width="small"),
+            "☑":        st.column_config.CheckboxColumn("☑",      width="small",  default=False),
+            "Naam":     st.column_config.TextColumn("Naam instelling", width="large"),
+            "Locatie":  st.column_config.TextColumn("Locatie",         width="large"),
+            "Telefoon": st.column_config.TextColumn("Telefoon",        width="medium"),
+            "E-mail":   st.column_config.TextColumn("E-mail",          width="medium"),
+            "Website":  st.column_config.LinkColumn("Website", display_text="🔗", width="small"),
         },
-        disabled=["Naam","Locatie","Type","Telefoon","Website","Klein","Nieuw"],
+        disabled=["Naam","Locatie","Telefoon","Website"],
         key="table_editor",
     )
 
     selected_df = edited[edited["☑"] == True].copy()
     n_sel = len(selected_df)
-    if n_sel > 0:
-        st.markdown(f'<div class="sel-badge">✓ {n_sel} rijen geselecteerd</div>',
-                    unsafe_allow_html=True)
 
-    # ── Downloads ─────────────────────────────────────────────────────────────
+    # ── Download ──────────────────────────────────────────────────────────────
     st.divider()
     st.markdown("### 📥 Downloaden")
 
-    scope = st.radio("Exporteer:", ["Alle resultaten","Alleen geselecteerde rijen"],
-                     horizontal=True, disabled=(n_sel==0),
-                     index=1 if n_sel>0 else 0)
-    export_src = selected_df if (scope=="Alleen geselecteerde rijen" and n_sel>0) else edited
-    COLS = ["Naam","Locatie","Type","Telefoon","E-mail","Website"]
-    ex_df = export_src[COLS].copy()
-    st.caption(f"{len(ex_df)} rijen worden geëxporteerd")
+    scope = st.radio(
+        "Exporteer:",
+        ["Alle resultaten", "Alleen geselecteerde rijen"],
+        horizontal=True,
+        disabled=(n_sel == 0),
+        index=1 if n_sel > 0 else 0,
+    )
+    src = selected_df if (scope == "Alleen geselecteerde rijen" and n_sel > 0) else edited
+
+    # Export kolommen: alleen naam, locatie, telefoon, e-mail
+    EX_COLS = ["Naam", "Locatie", "Telefoon", "E-mail"]
+    ex_df = src[EX_COLS].rename(columns={
+        "Naam":     "Naam instelling",
+        "Locatie":  "Locatie",
+        "Telefoon": "Telefoon",
+        "E-mail":   "E-mail",
+    })
+    st.caption(f"{len(ex_df)} rijen — kolommen: Naam, Locatie, Telefoon, E-mail")
 
     dl1, dl2 = st.columns(2)
+
+    # Excel
     with dl1:
         try:
             import openpyxl
             from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
             from openpyxl.utils import get_column_letter
+
             xbuf = io.BytesIO()
-            wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Zorg Locaties"
-            HF = Font(name="Calibri",bold=True,color="FFFFFF",size=11)
-            HFI = PatternFill("solid",fgColor="1F4E79")
-            AF  = PatternFill("solid",fgColor="EBF3FB")
-            CF  = Font(name="Calibri",size=10)
-            LF  = Font(name="Calibri",size=10,color="0563C1",underline="single")
-            AL  = Alignment(horizontal="left",vertical="center")
-            BO  = Border(bottom=Side(style="thin",color="D9D9D9"))
-            WS  = [38,42,22,18,32,45]
-            LB  = ["Naam instelling","Locatie","Type","Telefoon","E-mail","Website"]
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Zorg Locaties"
+
+            HF = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
+            HFI = PatternFill("solid", fgColor="1F4E79")
+            AF  = PatternFill("solid", fgColor="EBF3FB")
+            CF  = Font(name="Calibri", size=10)
+            LF  = Font(name="Calibri", size=10, color="0563C1", underline="single")
+            AL  = Alignment(horizontal="left", vertical="center")
+            BO  = Border(bottom=Side(style="thin", color="D9D9D9"))
+            WIDTHS = [40, 44, 20, 34]
+
             ws.row_dimensions[1].height = 22
-            for ci,(lb,w) in enumerate(zip(LB,WS),1):
-                c = ws.cell(row=1,column=ci,value=lb)
-                c.font=HF; c.fill=HFI
-                c.alignment=Alignment(horizontal="center",vertical="center")
-                ws.column_dimensions[get_column_letter(ci)].width=w
-            for ri,(_,row) in enumerate(ex_df.iterrows(),2):
-                fill=AF if ri%2==0 else None
-                ws.row_dimensions[ri].height=16
-                for ci,col in enumerate(COLS,1):
-                    val=str(row.get(col,"") or "")
-                    cell=ws.cell(row=ri,column=ci,value=val)
-                    cell.alignment=AL; cell.border=BO
-                    if fill: cell.fill=fill
-                    if col=="Website" and val.startswith("http"):
-                        cell.hyperlink=val; cell.value="Bekijk website"; cell.font=LF
-                    elif col=="E-mail" and "@" in val:
-                        cell.hyperlink=f"mailto:{val}"; cell.font=LF
+            for ci, (col, w) in enumerate(zip(ex_df.columns, WIDTHS), 1):
+                c = ws.cell(row=1, column=ci, value=col)
+                c.font = HF; c.fill = HFI
+                c.alignment = Alignment(horizontal="center", vertical="center")
+                ws.column_dimensions[get_column_letter(ci)].width = w
+
+            for ri, (_, row) in enumerate(ex_df.iterrows(), 2):
+                fill = AF if ri % 2 == 0 else None
+                ws.row_dimensions[ri].height = 16
+                for ci, col in enumerate(ex_df.columns, 1):
+                    val = str(row.get(col, "") or "")
+                    cell = ws.cell(row=ri, column=ci, value=val)
+                    cell.alignment = AL; cell.border = BO
+                    if fill: cell.fill = fill
+                    if col == "E-mail" and "@" in val:
+                        cell.hyperlink = f"mailto:{val}"
+                        cell.font = LF
                     else:
-                        cell.font=CF
-            ws.auto_filter.ref=f"A1:{get_column_letter(len(COLS))}1"
-            ws.freeze_panes="A2"
+                        cell.font = CF
+
+            ws.auto_filter.ref = f"A1:{get_column_letter(len(ex_df.columns))}1"
+            ws.freeze_panes = "A2"
             wb.save(xbuf); xbuf.seek(0)
-            dl1.download_button("📊 Download Excel", data=xbuf,
+
+            dl1.download_button(
+                "📊 Download Excel",
+                data=xbuf,
                 file_name=f"zorg_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True)
+                use_container_width=True,
+            )
         except Exception as e:
             dl1.error(f"Excel fout: {e}")
 
+    # CSV
     with dl2:
-        csv_b = ex_df.to_csv(index=False,encoding="utf-8-sig").encode("utf-8-sig")
-        dl2.download_button("📄 Download CSV", data=csv_b,
+        csv_b = ex_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        dl2.download_button(
+            "📄 Download CSV",
+            data=csv_b,
             file_name=f"zorg_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv", use_container_width=True)
-
-    # ── E-mail versturen ──────────────────────────────────────────────────────
-    st.divider()
-    st.markdown("### 📧 E-mails versturen")
-
-    if n_sel == 0:
-        st.info("Selecteer eerst rijen in de tabel (☑) om e-mails te versturen.")
-    else:
-        # Tabel van ontvangers met bewerkbare e-mail kolom
-        st.markdown(f"**{n_sel} instellingen geselecteerd** — vul ontbrekende e-mailadressen in:")
-        recip_df = selected_df[["Naam","E-mail"]].copy().reset_index(drop=True)
-        recip_edited = st.data_editor(
-            recip_df,
+            mime="text/csv",
             use_container_width=True,
-            hide_index=True,
-            height=min(35 + n_sel*36, 300),
-            column_config={
-                "Naam":   st.column_config.TextColumn("Naam instelling", disabled=True),
-                "E-mail": st.column_config.TextColumn("E-mailadres", help="Voer in als leeg"),
-            },
-            key="recip_editor",
         )
-
-        valid_recips = recip_edited[recip_edited["E-mail"].str.contains("@", na=False)]
-        n_valid = len(valid_recips)
-        if n_valid < n_sel:
-            st.caption(f"⚠️ {n_sel - n_valid} instellingen zonder e-mailadres worden overgeslagen.")
-
-        st.markdown("**E-mailsjabloon:**")
-        col_subj, col_sign = st.columns([3,1])
-        with col_subj:
-            subject = st.text_input("Onderwerp",
-                value="Kennismaking — samenwerking ouderenzorg",
-                key="email_subject")
-        with col_sign:
-            sender_name = st.text_input("Jouw naam", placeholder="bijv. Care", key="sender_name")
-
-        body_template = st.text_area(
-            "Berichttekst (gebruik {naam} voor de naam van de instelling)",
-            value=(
-                "Geachte {naam},\n\n"
-                "Mijn naam is {afzender} en ik neem contact met u op in verband met "
-                "een mogelijke samenwerking op het gebied van ouderenzorg en dementiezorg.\n\n"
-                "Ik zou graag meer willen weten over uw instelling en de mogelijkheden "
-                "voor een vrijblijvend kennismakingsgesprek.\n\n"
-                "Zou u open staan voor een kort gesprek?\n\n"
-                "Met vriendelijke groet,\n"
-                "{afzender}"
-            ),
-            height=220,
-            key="email_body",
-        )
-
-        # Preview
-        with st.expander("👁 Preview eerste e-mail"):
-            preview_naam = valid_recips.iloc[0]["Naam"] if n_valid > 0 else "Verpleeghuis Voorbeeld"
-            preview = body_template.replace("{naam}", preview_naam).replace(
-                "{afzender}", sender_name or "Uw naam")
-            st.markdown(f"**Aan:** {valid_recips.iloc[0]['E-mail'] if n_valid>0 else 'voorbeeld@zorg.nl'}")
-            st.markdown(f"**Onderwerp:** {subject}")
-            st.markdown(f'<div class="email-preview">{preview}</div>', unsafe_allow_html=True)
-
-        st.markdown("**SMTP-instellingen (Gmail aanbevolen):**")
-        sm1, sm2, sm3 = st.columns([2,2,1])
-        smtp_email    = sm1.text_input("Jouw e-mailadres",    key="smtp_email",
-                                        placeholder="jij@gmail.com")
-        smtp_password = sm2.text_input("App-wachtwoord",      key="smtp_password",
-                                        type="password",
-                                        placeholder="xxxx xxxx xxxx xxxx")
-        smtp_host     = sm3.selectbox("Provider", ["Gmail","Outlook","Anders"], key="smtp_host")
-
-        HOST_MAP = {"Gmail":("smtp.gmail.com",587),
-                    "Outlook":("smtp.office365.com",587),
-                    "Anders":("smtp.gmail.com",587)}
-        host, port = HOST_MAP[smtp_host]
-
-        if smtp_host == "Gmail":
-            st.caption("Gmail: ga naar **Mijn Google-account → Beveiliging → App-wachtwoorden** "
-                       "en maak een App-wachtwoord aan voor 'Mail'.")
-
-        send_col, _ = st.columns([1,3])
-        with send_col:
-            send_btn = st.button(
-                f"📨 Verstuur {n_valid} e-mails",
-                type="primary",
-                disabled=(n_valid == 0 or not smtp_email or not smtp_password),
-                use_container_width=True,
-            )
-
-        if send_btn:
-            if not sender_name:
-                st.error("Vul eerst jouw naam in.")
-            else:
-                results_log = []
-                progress_email = st.progress(0, text="E-mails versturen...")
-                ctx = ssl.create_default_context()
-                try:
-                    with smtplib.SMTP(host, port) as server:
-                        server.starttls(context=ctx)
-                        server.login(smtp_email, smtp_password)
-
-                        for i, (_, row) in enumerate(valid_recips.iterrows()):
-                            naam  = row["Naam"]
-                            email = row["E-mail"]
-                            tekst = body_template.replace("{naam}", naam).replace(
-                                "{afzender}", sender_name)
-
-                            msg = MIMEMultipart("alternative")
-                            msg["Subject"] = subject
-                            msg["From"]    = f"{sender_name} <{smtp_email}>"
-                            msg["To"]      = email
-                            msg.attach(MIMEText(tekst, "plain", "utf-8"))
-
-                            try:
-                                server.sendmail(smtp_email, email, msg.as_string())
-                                results_log.append(("✅", naam, email))
-                            except Exception as e:
-                                results_log.append(("❌", naam, f"Fout: {e}"))
-
-                            progress_email.progress((i+1)/n_valid,
-                                                    text=f"Verstuurd: {naam}...")
-
-                except smtplib.SMTPAuthenticationError:
-                    st.error("❌ Inloggen mislukt. Controleer je e-mailadres en App-wachtwoord.")
-                    results_log = []
-                except Exception as e:
-                    st.error(f"❌ SMTP fout: {e}")
-                    results_log = []
-
-                if results_log:
-                    progress_email.empty()
-                    ok  = [(n,e) for s,n,e in results_log if s=="✅"]
-                    err = [(n,e) for s,n,e in results_log if s=="❌"]
-                    if ok:
-                        st.success(f"✅ {len(ok)} e-mail(s) verstuurd!")
-                    if err:
-                        for n,e in err:
-                            st.warning(f"⚠️ {n}: {e}")
-                    st.session_state.email_sent += [e for _,_,e in results_log]
-
-        if st.session_state.email_sent:
-            st.caption(f"📬 Al verstuurd in deze sessie: {len(st.session_state.email_sent)} e-mail(s)")
 
 else:
     st.info("👈 Stel je filters in en klik **Start zoeken**.")
@@ -523,6 +404,9 @@ else:
     - 🧠 Dementie- en Alzheimer-afdelingen
     - 🏡 Kleinschalige woonvormen voor ouderen
     - Zowel **Nederland** als **België**
+
+    **Contactgegevens ophalen** bezoekt automatisch elke gevonden website
+    om telefoonnummers en e-mailadressen te vinden.
 
     **Tip:** gebruik **Snel zoeken** voor resultaten in <30 seconden.
     """)

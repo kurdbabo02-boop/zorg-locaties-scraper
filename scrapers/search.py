@@ -122,26 +122,24 @@ class SearchScraper(BaseScraper):
 
     def _result_to_location(self, result: dict, country: str, query: str) -> CareLocation | None:
         """Convert a DDG search result to a CareLocation."""
-        title = result.get("title", "")
-        body  = result.get("body", "")
-        url   = result.get("href", "")
+        raw_title = result.get("title", "")
+        body      = result.get("body", "")
+        url       = result.get("href", "")
 
-        if not title:
+        if not raw_title:
             return None
 
-        # Filter: only include results that look like care institutions
-        if not is_relevant(title, body, url):
+        if not is_relevant(raw_title, body, url):
             return None
 
-        # Try to extract city from query context
-        city = self._extract_city_from_query(query)
-
+        title = self._clean_title(raw_title)
+        city  = self._extract_city_from_query(query)
         specs = detect_specializations(title, body)
         care_type = detect_care_type(title, body)
 
         return CareLocation(
             name=title,
-            description=body[:500],
+            description=body[:300],
             website=url,
             city=city,
             country=country,
@@ -153,6 +151,19 @@ class SearchScraper(BaseScraper):
             source=self.name,
             source_url=url,
         )
+
+    def _clean_title(self, title: str) -> str:
+        """Zet een paginatitel om naar een nette instellingsnaam."""
+        # Splits op veelgebruikte scheidingstekens en neem het eerste deel
+        for sep in [" | ", " - ", " – ", " — ", " :: ", " · ", " > "]:
+            if sep in title:
+                title = title.split(sep)[0]
+        # Verwijder achterliggende haakjes zoals "(Amsterdam)"
+        title = re.sub(r'\s*[\(\[].*[\)\]]$', '', title)
+        # Kap af op 70 tekens op een woordgrens
+        if len(title) > 70:
+            title = title[:70].rsplit(' ', 1)[0].rstrip(',')
+        return title.strip()
 
     def _extract_city_from_query(self, query: str) -> str:
         """Best-effort city extraction from the query string."""
