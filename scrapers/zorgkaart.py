@@ -20,13 +20,12 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.zorgkaart.nl"
 
-# Category slugs on zorgkaart.nl that are relevant to elderly/dementia care
+# Category slugs op zorgkaart.nl — alleen 24/7 woonzorg (geen thuiszorg of dagopvang)
 CATEGORIES = [
     ("verpleging-en-verzorging", "verpleeghuis"),
     ("dementie", "dementie_centrum"),
     ("ouderengeneeskunde", "ouderengeneeskunde"),
-    ("thuiszorg", "thuiszorg"),
-    ("dagopvang-ouderen", "dagopvang"),
+    ("woonzorgcentrum", "woonzorgcentrum"),
 ]
 
 

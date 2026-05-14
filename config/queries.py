@@ -9,13 +9,11 @@ BASE_QUERIES_NL = [
     "nieuw verpleeghuis {region}",
     "woonzorgcentrum dementie {region}",
     "kleinschalig verpleeghuis {region}",
-    "zorglocatie ouderen opening {region}",
+    "24 uurs zorg ouderen {region}",
     "particuliere zorginstelling ouderenzorg {region}",
-    "thuiszorg dementie {region}",
-    "dagopvang dementie ouderen {region}",
     "hospice ouderenzorg {region}",
     "kleinschalig groepswonen dementie {region}",
-    "geheugensteun zorginstelling {region}",
+    "woonzorglocatie dementie 24 uur {region}",
 ]
 
 BASE_QUERIES_BE = [
@@ -49,15 +47,17 @@ NATIONAL_QUERIES_BE = [
 ]
 
 # Care type keywords (for classification and filtering)
+# Alleen 24/7 woonzorgtypen — thuiszorg en dagopvang zijn uitgesloten
 CARE_TYPE_KEYWORDS = {
-    "verpleeghuis": ["verpleeghuis", "nursing home", "verpleegafdeling"],
-    "woonzorgcentrum": ["woonzorgcentrum", "wzc", "woon-zorgcentrum"],
+    "verpleeghuis":       ["verpleeghuis", "nursing home", "verpleegafdeling"],
+    "woonzorgcentrum":    ["woonzorgcentrum", "wzc", "woon-zorgcentrum"],
     "kleinschalig_wonen": ["kleinschalig wonen", "kleinschalige woonvorm", "groepswonen", "woongroep"],
-    "dagopvang": ["dagopvang", "dagverzorging", "dagactiviteit", "dag centrum"],
-    "thuiszorg": ["thuiszorg", "thuisverpleging", "mantelzorg"],
-    "hospice": ["hospice", "palliatieve zorg"],
-    "alzheimer_centrum": ["alzheimer centrum", "geheugenpolikliniek", "geheugenkliniek"],
+    "hospice":            ["hospice", "palliatieve zorg"],
+    "alzheimer_centrum":  ["alzheimer centrum", "geheugenkliniek"],
 }
+
+# Typen die NIET 24/7 zijn en gefilterd worden
+EXCLUDED_CARE_TYPES = {"thuiszorg", "dagopvang", "dagverzorging"}
 
 # Keywords that signal focus on elderly / dementia
 ELDERLY_KEYWORDS = [

@@ -81,7 +81,19 @@ def run_scrapers(args) -> List[CareLocation]:
 
 
 def apply_filters(locations: List[CareLocation], args) -> List[CareLocation]:
-    """Apply command-line filters."""
+    """Apply filters: altijd thuiszorg/dagopvang eruit, dan CLI-filters."""
+    from config.queries import EXCLUDED_CARE_TYPES
+
+    # Altijd: alleen 24/7 woonzorg
+    locations = [l for l in locations if l.care_type not in EXCLUDED_CARE_TYPES]
+
+    # Aanvullend: naam-check op uitgesloten termen
+    EXCLUDED_TERMS = ["thuiszorg", "dagopvang", "dagverzorging", "thuisverpleging"]
+    locations = [
+        l for l in locations
+        if not any(t in l.name.lower() for t in EXCLUDED_TERMS)
+    ]
+
     if args.country:
         locations = [l for l in locations if l.country.upper() == args.country.upper()]
     if args.small:
