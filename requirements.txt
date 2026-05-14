@@ -1,0 +1,20 @@
+# Core scraping
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# Search (no API key required)
+duckduckgo-search>=6.1.0
+
+# Data processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# Terminal output
+rich>=13.0.0
+
+# Scheduling (optional, voor --schedule modus)
+schedule>=1.2.0
+
+# HTML parsing helpers
+html5lib>=1.1

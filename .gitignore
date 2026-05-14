@@ -1,0 +1,32 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Data (output files worden niet meegecommit)
+data/output/
+data/*.db
+data/raw/
+data/*.log
+*.log
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Secrets (al moeten er geen zijn in dit project)
+.env
+*.env
+secrets.py
