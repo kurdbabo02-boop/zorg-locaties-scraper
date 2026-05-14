@@ -31,6 +31,13 @@ logger = logging.getLogger(__name__)
 class SearchScraper(BaseScraper):
     name = "duckduckgo_search"
 
+    def __init__(self, quick_mode: bool = False, max_queries: int = None,
+                 region_override: List[str] = None):
+        super().__init__()
+        self.quick_mode      = quick_mode       # True = snelle modus (weinig queries)
+        self.max_queries     = max_queries       # harde limiet op totaal aantal queries
+        self.region_override = region_override  # specifieke regio's van de UI
+
     def scrape(self) -> List[CareLocation]:
         locations = []
         seen_urls: set = set()
@@ -64,27 +71,46 @@ class SearchScraper(BaseScraper):
         """Return list of (query_string, country) tuples."""
         queries = []
 
-        # National queries (no region substitution)
-        for q in NATIONAL_QUERIES_NL:
-            queries.append((q, "NL"))
-        for q in NATIONAL_QUERIES_BE:
-            queries.append((q, "BE"))
+        if self.quick_mode:
+            # Snelle modus: alleen nationale queries, geen per-regio loops
+            for q in NATIONAL_QUERIES_NL[:5]:
+                queries.append((q, "NL"))
+            for q in NATIONAL_QUERIES_BE[:3]:
+                queries.append((q, "BE"))
+            # Als regio's zijn meegegeven, voeg een paar gerichte queries toe
+            if self.region_override:
+                for region in self.region_override[:3]:
+                    queries.append((f"verpleeghuis dementie {region}", "NL"))
+                    queries.append((f"woonzorgcentrum ouderenzorg {region}", "NL"))
+        else:
+            # Volledige modus
+            for q in NATIONAL_QUERIES_NL:
+                queries.append((q, "NL"))
+            for q in NATIONAL_QUERIES_BE:
+                queries.append((q, "BE"))
 
-        # Per-region queries — sample regions to keep runtime manageable
-        nl_regions = random.sample(NL_PROVINCES, min(6, len(NL_PROVINCES))) + \
-                     random.sample(NL_CITIES,    min(10, len(NL_CITIES)))
-        be_regions = random.sample(BE_PROVINCES, min(4, len(BE_PROVINCES))) + \
-                     random.sample(BE_CITIES,    min(8, len(BE_CITIES)))
+            if self.region_override:
+                nl_regions = self.region_override
+                be_regions = self.region_override
+            else:
+                nl_regions = random.sample(NL_PROVINCES, min(6, len(NL_PROVINCES))) + \
+                             random.sample(NL_CITIES,    min(10, len(NL_CITIES)))
+                be_regions = random.sample(BE_PROVINCES, min(4, len(BE_PROVINCES))) + \
+                             random.sample(BE_CITIES,    min(8, len(BE_CITIES)))
 
-        for region in nl_regions:
-            templates = random.sample(BASE_QUERIES_NL, min(MAX_QUERIES_PER_REGION, len(BASE_QUERIES_NL)))
-            for tpl in templates:
-                queries.append((tpl.format(region=region), "NL"))
+            for region in nl_regions:
+                templates = random.sample(BASE_QUERIES_NL, min(MAX_QUERIES_PER_REGION, len(BASE_QUERIES_NL)))
+                for tpl in templates:
+                    queries.append((tpl.format(region=region), "NL"))
 
-        for region in be_regions:
-            templates = random.sample(BASE_QUERIES_BE, min(MAX_QUERIES_PER_REGION, len(BASE_QUERIES_BE)))
-            for tpl in templates:
-                queries.append((tpl.format(region=region), "BE"))
+            for region in be_regions:
+                templates = random.sample(BASE_QUERIES_BE, min(MAX_QUERIES_PER_REGION, len(BASE_QUERIES_BE)))
+                for tpl in templates:
+                    queries.append((tpl.format(region=region), "BE"))
+
+        # Harde limiet
+        if self.max_queries:
+            queries = queries[:self.max_queries]
 
         return queries
 
