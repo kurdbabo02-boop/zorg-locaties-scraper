@@ -130,8 +130,7 @@ class SearchScraper(BaseScraper):
             return None
 
         # Filter: only include results that look like care institutions
-        combined = f"{title} {body}"
-        if not is_relevant(title, body):
+        if not is_relevant(title, body, url):
             return None
 
         # Try to extract city from query context

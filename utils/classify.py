@@ -8,6 +8,22 @@ from config.queries import (
     SMALL_KEYWORDS, EMERGING_KEYWORDS,
 )
 
+# Domeinen en termen die vacature-sites of irrelevante resultaten aanduiden
+VACATURE_DOMAINS = {
+    "indeed.com", "linkedin.com", "jobbird.nl", "werk.nl", "nationale-vacaturebank.nl",
+    "monsterboard.nl", "vacaturebank.nl", "intermediair.nl", "uitzendbureau",
+    "werkzoekenden.nl", "carerix.com", "recruitnow.nl", "solliciteer",
+    "mijncarriere.nl", "youngcapital.nl", "temper.nl", "werkenbij",
+}
+
+VACATURE_KEYWORDS = [
+    "vacature", "vacatures", "werken bij", "solliciteren", "solliciteer",
+    "baan", "medewerker gezocht", "stageplaats", "stageplek",
+    "werving", "selectie", "recruiter", "jobboard", "werkenbij",
+    "part-time functie", "fulltime functie", "uren per week",
+    "functie-eisen", "wij zoeken", "ben jij", "jij bent",
+]
+
 
 def _text(*fields) -> str:
     """Combine fields into one lowercase string for keyword matching."""
@@ -32,8 +48,23 @@ def detect_specializations(name: str, description: str = "") -> list:
     return specs
 
 
-def is_relevant(name: str, description: str = "") -> bool:
-    """Returns True if the location is likely related to elderly/dementia care."""
+def is_relevant(name: str, description: str = "", url: str = "") -> bool:
+    """Returns True if the result is a genuine care institution (not a vacancy or irrelevant site)."""
+    # Reject vacature domains
+    if url:
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc.lower().replace("www.", "")
+        if any(v in domain for v in VACATURE_DOMAINS):
+            return False
+
+    text = _text(name, description)
+
+    # Reject if dominated by vacancy language
+    vac_hits = sum(1 for kw in VACATURE_KEYWORDS if kw in text)
+    if vac_hits >= 2:
+        return False
+
+    # Must mention elderly/dementia care
     specs = detect_specializations(name, description)
     return bool(specs)
 
