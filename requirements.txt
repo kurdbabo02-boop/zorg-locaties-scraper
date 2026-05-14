@@ -10,6 +10,9 @@ duckduckgo-search>=6.1.0
 pandas>=2.0.0
 openpyxl>=3.1.0
 
+# Web interface
+streamlit>=1.35.0
+
 # Terminal output
 rich>=13.0.0
 
